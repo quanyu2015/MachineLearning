@@ -1,0 +1,67 @@
+---
+title: "Project of Practical Machine Learning"
+author: Quan Yu
+date: April 20, 2015
+output: html_document
+---
+
+
+Explore the training dataset
+---
+The data we used for the project is called **Weight Lifting Exercises Dataset** from [http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har)
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. **Qualitative Activity Recognition of Weight Lifting Exercises**. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+
+```{r longanalysis, cache=TRUE}
+# First let's read the training data
+dat = read.csv("data/pml-training.csv")
+dat = dat[,-1]
+dim(dat)
+# Here are our 6 male participants
+# And also the 5 exercise manners we are going to predict
+table(dat$user_name, dat$classe)
+```
+I quoted the definitions of these 5 classes about how they were doing **Unilateral Dumbbell Biceps Curl**.
+```
+exactly according to the specification (Class A), 
+throwing the elbows to the front (Class B), 
+lifting the dumbbell only halfway (Class C), 
+lowering the dumbbell only halfway (Class D), 
+throwing the hips to the front (Class E).
+```
+So in short, Class A is the right one, and the other 4 classes are common mistakes.
+
+We also got know that 4 sensors were placed on dumbbell, arm, forearm and belt and 38 variables were recorded for each sensor.
+
+```{r}
+var.names = colnames(dat)
+sort(var.names[grep("_forearm",var.names)])
+```
+
+Feature selection
+---
+blabla
+
+Model building
+---
+In this section, I'm going to build several models and a combined model as well. Then I will examine each of them and decide which one perform best.
+I'm going to split all training data into training/testing/validation parts.
+
+```
+library(caret)
+# Validation data
+inBuild <- createDataPartition(y=dat$classe, p=0.75, list=FALSE)
+validation <- dat[-inBuild,]; buildData <- dat[inBuild,]
+
+# Training and testing data, 5 fold cross validation
+# folds <- createFolds(y=training$classe,k=5,list=TRUE,returnTrain=TRUE)
+inTrain <- createDataPartition(y=buildData$classe, p=0.75, list=FALSE)
+training <- buildData[inTrain,]
+testing <- buildData[-inTrain,]
+# train the data using both glm and random forest models
+glm.fit <- train(classe ~.,method="glm",data=training,  
+	trControl = trainControl(method="cv"),number=5)
+rf.fit <- train(classe ~.,method="rf",data=training,
+	trControl = trainControl(method="cv"),number=5)
+
+```
