@@ -1,0 +1,139 @@
+---
+title: "Project of Practical Machine Learning"
+author: QUAN Yu
+date: April 20, 2015
+output: html_document
+---
+
+
+## Explore the training dataset
+The data we used for the project is called **Weight Lifting Exercises Dataset** from [http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har)
+
+> Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. **Qualitative Activity Recognition of Weight Lifting Exercises**. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+
+```{r}
+# First let's read the training data
+dat = read.csv("data/pml-training.csv")
+test20 = read.csv("data/pml-testing.csv")
+dim(dat)
+# I found that many variable columns are NA. So decided to remove all NA variables
+test20 <- test20[,colSums(is.na(test20))<nrow(test20)]
+# remove variable "problem_id" and "X", include variable "classe" in the training data
+var.names = c(colnames(test20)[-c(1,60)], "classe")
+dat = dat[, var.names]
+dim(dat)
+
+# Here are our 6 male participants
+unique(dat$user_name)
+# And also the 5 exercise manners we are going to predict
+unique(dat$classe)
+```
+
+Here I quoted the definitions of these 5 classes about how they were doing **Unilateral Dumbbell Biceps Curl**.
+
+* exactly according to the specification (Class A), 
+* throwing the elbows to the front (Class B), 
+* lifting the dumbbell only halfway (Class C), 
+* lowering the dumbbell only halfway (Class D), 
+* throwing the hips to the front (Class E).
+
+So in short, Class A is the right one, and the other 4 classes are common mistakes.
+We also got know that 4 sensors were placed on dumbbell, arm, forearm and belt and 38 variables (25 of them are NA) were recorded for each sensor.
+```{r}
+# for example, all the variables from the forearm sensor
+sort(var.names[grep("_forearm",var.names)])
+```
+
+## Model building
+In this section, I'm going to build several models and a combined model as well. Then I will examine each of them and decide which one perform best.
+
+```{r}
+library(caret)
+# I'm going to split all training data into training/testing/validation parts.
+set.seed(123)
+inBuild <- createDataPartition(y=dat$classe, p=0.9, list=FALSE)
+validation <- dat[-inBuild,]
+buildData <- dat[inBuild,]
+inTrain <- createDataPartition(y=buildData$classe, p=0.7, list=FALSE)
+training <- buildData[inTrain,]
+testing <- buildData[-inTrain,]
+
+# convert character into factor
+training$classe = factor(training$classe)
+
+# my data size
+print(c(nrow(training), nrow(testing), nrow(validation)))
+```
+
+```{r eval = F}
+# train the data using 3 different models with 5 fold cross validation
+set.seed(456)
+library(doMC)
+registerDoMC(8)
+
+lda.fit <- train(classe ~.,method="lda",data=training,  
+	trControl = trainControl(method="repeatedcv"),number=5)
+rf.fit <- train(classe ~.,method="rf",data=training,
+	trControl = trainControl(method="repeatedcv"),number=5)
+nb.fit <- train(classe ~.,method="nb",data=training, 
+	trControl = trainControl(method="repeatedcv"),number=5)
+
+# Predict the results on the testing data
+lda.pred <- predict(lda.fit,testing)
+rf.pred <- predict(rf.fit,testing)
+nb.pred <- predict(nb.fit,testing)
+```
+
+```{r warning = F}
+# Then combine the predicted results and the testing results
+combined.Test <- data.frame(lda.pred, rf.pred, nb.pred, classe = testing$classe)
+combined.Test$classe <- factor(combined.Test$classe)
+# train the combined data with gam model
+comb.fit <- train(classe ~.,method="gam",data=combined.Test)
+comb.pred <- predict(comb.fit, combined.Test)
+
+## Test their performance
+# evaluate the performance of 3 individual models and the combined model
+lda.pred.val <- predict(lda.fit,validation)
+rf.pred.val <- predict(rf.fit,validation)
+nb.pred.val <- predict(nb.fit,validation)
+combinedValData <- data.frame(lda.pred.val, rf.pred.val, nb.pred.val)
+comb.pred.val <- predict(comb.fit,combinedValData)
+
+# Calculate the accuracy for each model
+acc.lda = mean(lda.pred.val == validation$classe)
+acc.rf = mean(rf.pred.val == validation$classe)
+acc.nb = mean(nb.pred.val == validation$classe)
+acc.comb = mean(comb.pred.val == validation$classe)
+print(c(acc.lda, acc.rf, acc.nb, acc.comb))
+```
+
+From the above prediction results, we saw that the random foreast model preformed best. Therefore, I'm going to use only random forest model to predict the 20 testing data
+I expected that the out of sample error could be due to the noise from training data that was captured in the prediction model  
+
+```{r}
+# Run the model on the 20 testing data
+rf.pred.20  <- predict(rf.fit, test20)
+print(rf.pred.20)
+```
+
+<!--
+# Validation data
+# folds <- createFolds(y=training$classe,k=5,list=TRUE,returnTrain=TRUE)
+# training <- buildData[-inBuild,] 
+# testing <- buildData[inBuild,]
+# {r longanalysis, cache=TRUE}
+# glm.fit <- train(classe ~.,method="rpart",data=training,  
+# rf.fit <- train(classe ~.,method="rf",data=training,
+# ada.fit <- train(classe ~.,method="ada",data=training, 
+# testing$classe = factor(testing$classe)
+# validation$classe = factor(validation$classe)
+# test20$classe = factor(test20$classe)
+# combined.20 <- data.frame(lda.pred.20, rf.pred.20, nb.pred.20)
+# comb.pred.20 <- predict(comb.fit, combined.20)
+# print(comb.pred.20)
+# lda.pred.20 <- predict(lda.fit, test20)
+# nb.pred.20 <- predict(nb.fit, test20)
+
+-->

@@ -1,0 +1,80 @@
+---
+title: "Project of Practical Machine Learning"
+author: Quan Yu
+date: April 20, 2015
+output: html_document
+---
+
+
+Explore the training dataset
+---
+The data we used for the project is called **Weight Lifting Exercises Dataset** from [http://groupware.les.inf.puc-rio.br/har](http://groupware.les.inf.puc-rio.br/har)
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. **Qualitative Activity Recognition of Weight Lifting Exercises**. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+
+```{r longanalysis, cache=TRUE}
+# First let's read the training data
+dat = read.csv("data/pml-training.csv")
+# only keep varibles from the 4 sensors 
+dat = dat[,-c(1,3:7)]
+dim(dat)
+# Here are our 6 male participants
+# And also the 5 exercise manners we are going to predict
+table(dat$user_name, dat$classe)
+```
+
+Here I quoted the definitions of these 5 classes about how they were doing **Unilateral Dumbbell Biceps Curl**.
+> exactly according to the specification (Class A), 
+> throwing the elbows to the front (Class B), 
+> lifting the dumbbell only halfway (Class C), 
+> lowering the dumbbell only halfway (Class D), 
+> throwing the hips to the front (Class E).
+So in short, Class A is the right one, and the other 4 classes are common mistakes.
+
+We also got know that 4 sensors were placed on dumbbell, arm, forearm and belt and 38 variables were recorded for each sensor.
+
+```{r}
+var.names = colnames(dat)
+sort(var.names[grep("_forearm",var.names)])
+```
+
+Model building
+---
+In this section, I'm going to build several models and a combined model as well. Then I will examine each of them and decide which one perform best.
+I'm going to split all training data into training/testing/validation parts.
+
+```{r eval = F}
+library(caret)
+set.seed(123)
+inTrain <- createDataPartition(y=dat$classe, p=0.75, list=FALSE)
+training <- dat[inTrain,]
+testing <- dat[-inTrain,]
+
+# train the data using 3 different models with 5 fold cross validation
+set.seed(456)
+glm.fit <- train(classe ~.,method="glm",data=training,  
+	trControl = trainControl(method="cv"),number=5)
+rf.fit <- train(classe ~.,method="rf",data=training,
+	trControl = trainControl(method="cv"),number=5)
+gbm.fit <- train(classe ~.,method="gbm",data=training, 
+	trControl = trainControl(method="cv"),number=5)
+# Predict the results on the testing data
+glm.pred <- predict(glm.fit,testing)
+rf.pred <- predict(rf.fit,testing)
+gbm.pred <- predict(gbm.fit,testing)
+
+# Then combine the predicted results and the testing results
+combined.Test = data.frame(glm.pred, rf.pred, gbm.pred, classe = testing$classe)
+# train the combined data with gam model
+comb.fit <- train(classe ~.,method="gam",data=combined.Test)
+comb.pred <- predict(comb.fit, combined.Test)
+# evaluate the performance of 3 individual models and the combined model
+```
+
+<!--
+# Validation data
+inBuild <- createDataPartition(y=dat$classe, p=0.75, list=FALSE)
+validation <- dat[-inBuild,]; buildData <- dat[inBuild,]
+# folds <- createFolds(y=training$classe,k=5,list=TRUE,returnTrain=TRUE)
+
+-->
